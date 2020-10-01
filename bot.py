@@ -1,8 +1,8 @@
 import os
-
 import discord
 from dotenv import load_dotenv
 import datetime
+import json
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -47,12 +47,16 @@ Antharas\t{antharas_min} - {antharas_max}\t ({antharas_time})
             "antharas": "Antharas",
         }
 
-        self.windows = {
-            "aq": (None, None),
-            "zaken": (None, None),
-            "baium": (None, None),
-            "antharas": (None, None),
-        }
+        if os.path.isfile("windows.json"):
+            with open("windows.json", "r") as f:
+                self.windows = json.load(f)
+        else:
+            self.windows = {
+                "aq": (None, None),
+                "zaken": (None, None),
+                "baium": (None, None),
+                "antharas": (None, None),
+            }
         super().__init__()
 
     def create_window_string(self, window):
@@ -130,6 +134,10 @@ Antharas\t{antharas_min} - {antharas_max}\t ({antharas_time})
                     (t + datetime.timedelta(minutes=spawn_times[0])).strftime(self.TIME_FORMAT),
                     (t + datetime.timedelta(minutes=spawn_times[1])).strftime(self.TIME_FORMAT),
                 )
+
+                with open("windows.json", "w") as f:
+                    json.dump(self.windows, f)
+
                 await message.channel.send(
                     f"Spawn time of {self.BOSS_NAMES[boss_name]} updated, new window:\n"
                     f"`{self.windows[boss_name][0]} - {self.windows[boss_name][1]}`"
