@@ -101,6 +101,7 @@ Antharas\t{antharas_min} - {antharas_max}\t ({antharas_time})
                 t -= datetime.timedelta(minutes=minutes)
 
             await message.channel.send(t.strftime(self.TIME_FORMAT))
+            return
 
         if content[: len(self.WINDOWS)] == self.WINDOWS:
             aq_min, aq_max = self.windows["aq"]
@@ -115,14 +116,18 @@ Antharas\t{antharas_min} - {antharas_max}\t ({antharas_time})
 
             response = eval(f'f"""{self.WINDOWS_RESPONSE}"""')
             await message.channel.send(response)
+            return
 
         if content[: len(self.TOD)] == self.TOD:
             content_split = content.split(" ")
+            print(content_split)
 
-            if len(content_split) < 3:
+            if len(content_split) < 4:
                 await message.channel.send(
-                    "Incorrect number of arguments for !tod, must follow format: `!tod <boss_name> <time>`"
+                    "Incorrect number of arguments for !tod, must follow format: `!tod <aq|zaken|baium|antharas> year/month/day hours:minutes` with hours in 24h format\n"
+                    "For example: `!tod aq 2020/09/30 23:30`"
                 )
+                return
 
             boss_name = content_split[1].lower()
             time_of_death = " ".join(content_split[2:4])
@@ -142,6 +147,7 @@ Antharas\t{antharas_min} - {antharas_max}\t ({antharas_time})
                     f"Spawn time of {self.BOSS_NAMES[boss_name]} updated, new window:\n"
                     f"`{self.windows[boss_name][0]} - {self.windows[boss_name][1]}`"
                 )
+                return
 
 
 client = CustomClient()
