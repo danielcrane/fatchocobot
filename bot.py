@@ -120,7 +120,6 @@ Antharas\t{antharas_min} - {antharas_max}\t ({antharas_time})
 
         if content[: len(self.TOD)] == self.TOD:
             content_split = content.split(" ")
-            print(content_split)
 
             if len(content_split) < 4:
                 await message.channel.send(
