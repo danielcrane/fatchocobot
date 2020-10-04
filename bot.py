@@ -2,7 +2,7 @@ import os
 import discord
 from dotenv import load_dotenv
 import datetime
-import json
+from firebase import firebase
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -21,7 +21,6 @@ def printable_time_delta(delta):
 class CustomClient(discord.Client):
     def __init__(self):
         self.TIME_FORMAT = "%H:%M %a, %b %d %Y (UTC)"
-        self.TIME = "!time"
         self.WINDOWS = "!windows"
         self.TOD = "!tod"
         self.WINDOWS_RESPONSE = """
@@ -30,6 +29,8 @@ AQ      \t{aq_min} - {aq_max}\t ({aq_time})
 Zaken   \t{zaken_min} - {zaken_max}\t ({zaken_time})
 Baium   \t{baium_min} - {baium_max}\t ({baium_time})
 Antharas\t{antharas_min} - {antharas_max}\t ({antharas_time})
+Valakas\t{valakas_min} - {valakas_max}\t ({valakas_time})
+Frintezza\t{frintezza_min} - {frintezza_max}\t ({frintezza_time})
 ```
         """
 
@@ -38,6 +39,8 @@ Antharas\t{antharas_min} - {antharas_max}\t ({antharas_time})
             "zaken": (40 * 60, (40 + 8) * 60),
             "baium": (120 * 60, (120 + 8) * 60),
             "antharas": (192 * 60, (192 + 8) * 60),
+            "valakas": (264 * 60, (264 + 0) * 60),
+            "frintezza": (48 * 60, (48 + 2) * 60),
         }
 
         self.BOSS_NAMES = {
@@ -45,22 +48,31 @@ Antharas\t{antharas_min} - {antharas_max}\t ({antharas_time})
             "zaken": "Zaken",
             "baium": "Baium",
             "antharas": "Antharas",
+            "valakas": "Valakas",
+            "frintezza": "Frintezza",
         }
 
-        if os.path.isfile("windows.json"):
-            with open("windows.json", "r") as f:
-                self.windows = json.load(f)
+        self.fb = firebase.FirebaseApplication("https://fatchocobot-2e402.firebaseio.com/", None)
+        if self.fb.get("/raid-windows", "") is not None:
+            result = self.fb.get("/raid-windows", "")
+            self.fb_name = list(result.keys())[0]
+            self.windows = result[self.fb_name]
         else:
             self.windows = {
-                "aq": (None, None),
-                "zaken": (None, None),
-                "baium": (None, None),
-                "antharas": (None, None),
+                "aq": ("None", "None"),
+                "zaken": ("None", "None"),
+                "baium": ("None", "None"),
+                "antharas": ("None", "None"),
+                "valakas": ("None", "None"),
+                "frintezza": ("None", "None"),
             }
+            result = self.fb.post("/raid-windows", self.windows)
+            self.fb_name = result["name"]
+
         super().__init__()
 
     def create_window_string(self, window):
-        if window[0] is None or window[1] is None:
+        if window[0] == "None" or window[1] == "None":
             return "window unknown"
 
         now = datetime.datetime.now(datetime.timezone.utc)
@@ -89,30 +101,21 @@ Antharas\t{antharas_min} - {antharas_max}\t ({antharas_time})
             return
         content = message.content.lower()
 
-        if self.TIME in content:
-            time_idx = content.index(self.TIME)
-            t = datetime.datetime.now(datetime.timezone.utc)
-
-            if (
-                len(content) > time_idx + len(TIME) + 1
-                and content[time_idx + len(TIME) + 1] == "-"
-            ):
-                minutes = int(content[time_idx + len(self.TIME) + 2 :].split(" ")[0])
-                t -= datetime.timedelta(minutes=minutes)
-
-            await message.channel.send(t.strftime(self.TIME_FORMAT))
-            return
-
         if content[: len(self.WINDOWS)] == self.WINDOWS:
+            self.windows = self.fb.get("/raid-windows", "")[self.fb_name]
             aq_min, aq_max = self.windows["aq"]
             zaken_min, zaken_max = self.windows["zaken"]
             baium_min, baium_max = self.windows["baium"]
             antharas_min, antharas_max = self.windows["antharas"]
+            valakas_min, valakas_max = self.windows["valakas"]
+            frintezza_min, frintezza_max = self.windows["frintezza"]
 
             aq_time = self.create_window_string(self.windows["aq"])
             zaken_time = self.create_window_string(self.windows["zaken"])
             baium_time = self.create_window_string(self.windows["baium"])
             antharas_time = self.create_window_string(self.windows["antharas"])
+            valakas_time = self.create_window_string(self.windows["valakas"])
+            frintezza_time = self.create_window_string(self.windows["frintezza"])
 
             response = eval(f'f"""{self.WINDOWS_RESPONSE}"""')
             await message.channel.send(response)
@@ -139,8 +142,7 @@ Antharas\t{antharas_min} - {antharas_max}\t ({antharas_time})
                     (t + datetime.timedelta(minutes=spawn_times[1])).strftime(self.TIME_FORMAT),
                 )
 
-                with open("windows.json", "w") as f:
-                    json.dump(self.windows, f)
+                self.fb.put(f"/raid-windows/{self.fb_name}", boss_name, self.windows[boss_name])
 
                 await message.channel.send(
                     f"Spawn time of {self.BOSS_NAMES[boss_name]} updated, new window:\n"
