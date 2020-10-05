@@ -2,11 +2,12 @@ import os
 import discord
 from dotenv import load_dotenv
 import datetime
+import asyncio
 from firebase import firebase
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
-GUILD = os.getenv("DISCORD_GUILD")
+DB = os.getenv("BOSS_DB")
 
 
 def printable_time_delta(delta):
@@ -23,28 +24,11 @@ class CustomClient(discord.Client):
         self.TIME_FORMAT = "%H:%M %a, %b %d %Y (UTC)"
         self.WINDOWS = "!windows"
         self.TOD = "!tod"
-        self.WINDOWS_RESPONSE = """
-```
-AQ      \t{aq_min} - {aq_max}\t ({aq_time})
-Zaken   \t{zaken_min} - {zaken_max}\t ({zaken_time})
-Baium   \t{baium_min} - {baium_max}\t ({baium_time})
-Antharas\t{antharas_min} - {antharas_max}\t ({antharas_time})
-Valakas\t{valakas_min} - {valakas_max}\t ({valakas_time})
-Frintezza\t{frintezza_min} - {frintezza_max}\t ({frintezza_time})
-```
-        """
-
-        self.SPAWN_TIMES = {
-            "aq": (24 * 60, (24 + 6) * 60),
-            "zaken": (40 * 60, (40 + 8) * 60),
-            "baium": (120 * 60, (120 + 8) * 60),
-            "antharas": (192 * 60, (192 + 8) * 60),
-            "valakas": (264 * 60, (264 + 0) * 60),
-            "frintezza": (48 * 60, (48 + 2) * 60),
-        }
 
         self.BOSS_NAMES = {
             "aq": "Ant Queen",
+            "core": "Core",
+            "orfen": "Orfen",
             "zaken": "Zaken",
             "baium": "Baium",
             "antharas": "Antharas",
@@ -52,24 +36,63 @@ Frintezza\t{frintezza_min} - {frintezza_max}\t ({frintezza_time})
             "frintezza": "Frintezza",
         }
 
-        self.fb = firebase.FirebaseApplication("https://fatchocobot-2e402.firebaseio.com/", None)
+        # Respawn times taken from: https://l2reborn.com/support/faq/what-is-the-respawn-time-of-raid-bosses-epics-etc/
+        self.SPAWN_TIMES = {
+            "aq": (24 * 60, (24 + 6) * 60),
+            "core": (30 * 60, (30 + 6) * 60),
+            "orfen": (30 * 60, (30 + 6) * 60),
+            "zaken": (40 * 60, (40 + 8) * 60),
+            "baium": (120 * 60, (120 + 8) * 60),
+            "antharas": (192 * 60, (192 + 8) * 60),
+            "valakas": (264 * 60, (264 + 0) * 60),
+            "frintezza": (48 * 60, (48 + 2) * 60),
+        }
+
+        self.WINDOW_CHECK_TIME = 10  # Time in seconds between window checks for alert
+
+        self.fb = firebase.FirebaseApplication(DB, None)
         if self.fb.get("/raid-windows", "") is not None:
             result = self.fb.get("/raid-windows", "")
             self.fb_name = list(result.keys())[0]
             self.windows = result[self.fb_name]
         else:
-            self.windows = {
-                "aq": ("None", "None"),
-                "zaken": ("None", "None"),
-                "baium": ("None", "None"),
-                "antharas": ("None", "None"),
-                "valakas": ("None", "None"),
-                "frintezza": ("None", "None"),
-            }
+            self.windows = {boss: ("None", "None") for boss in self.BOSS_NAMES.keys()}
             result = self.fb.post("/raid-windows", self.windows)
             self.fb_name = result["name"]
 
         super().__init__()
+
+    def windows_response(self):
+        self.windows = self.fb.get("/raid-windows", "")[self.fb_name]
+        lines = []
+        for boss, boss_verbose in self.BOSS_NAMES.items():
+            window = self.windows[boss]
+            countdown = self.create_window_string(window)
+            lines.append([boss_verbose, f"{window[0]} - {window[1]}", f"({countdown})"])
+
+        response = "```"
+        col_widths = [len(word) for line in lines for word in line]
+        for line in lines:
+            response += "\n"
+            response += "\t".join(word.ljust(col_widths[i]) for i, word in enumerate(line))
+        response += "```"
+        return response
+
+    def check_if_window(self, window):
+        if window[0] == "None" or window[1] == "None":
+            return False
+
+        now = datetime.datetime.now(datetime.timezone.utc)
+
+        min_time = datetime.datetime.strptime(window[0], self.TIME_FORMAT).replace(
+            tzinfo=datetime.timezone.utc
+        )
+
+        diff = min_time - now
+        if diff.days == 0 and diff.seconds < self.WINDOW_CHECK_TIME:
+            return True
+        else:
+            return False
 
     def create_window_string(self, window):
         if window[0] == "None" or window[1] == "None":
@@ -96,28 +119,16 @@ Frintezza\t{frintezza_min} - {frintezza_max}\t ({frintezza_time})
             # Case: window already closed
             return f"window closed {printable_time_delta(abs(max_time - now))} ago"
 
+    async def on_ready(self):
+        await self.boss_alert()
+
     async def on_message(self, message):
         if message.author == client.user:
             return
         content = message.content.lower()
 
         if content[: len(self.WINDOWS)] == self.WINDOWS:
-            self.windows = self.fb.get("/raid-windows", "")[self.fb_name]
-            aq_min, aq_max = self.windows["aq"]
-            zaken_min, zaken_max = self.windows["zaken"]
-            baium_min, baium_max = self.windows["baium"]
-            antharas_min, antharas_max = self.windows["antharas"]
-            valakas_min, valakas_max = self.windows["valakas"]
-            frintezza_min, frintezza_max = self.windows["frintezza"]
-
-            aq_time = self.create_window_string(self.windows["aq"])
-            zaken_time = self.create_window_string(self.windows["zaken"])
-            baium_time = self.create_window_string(self.windows["baium"])
-            antharas_time = self.create_window_string(self.windows["antharas"])
-            valakas_time = self.create_window_string(self.windows["valakas"])
-            frintezza_time = self.create_window_string(self.windows["frintezza"])
-
-            response = eval(f'f"""{self.WINDOWS_RESPONSE}"""')
+            response = self.windows_response()
             await message.channel.send(response)
             return
 
@@ -149,6 +160,17 @@ Frintezza\t{frintezza_min} - {frintezza_max}\t ({frintezza_time})
                     f"`{self.windows[boss_name][0]} - {self.windows[boss_name][1]}`"
                 )
                 return
+
+    async def boss_alert(self):
+        while True:
+            await asyncio.sleep(self.WINDOW_CHECK_TIME)
+            for boss, window in self.windows.items():
+                if self.check_if_window(window) is True:
+                    channel = client.get_channel(755624773400395928)  # #alliance-chat
+                    # channel = client.get_channel(737070921944399962)
+                    # TODO: Add way to add alert channels, and loop through them here
+                    msg = f"```{self.BOSS_NAMES[boss]} window is open!```"
+                    await channel.send(msg)
 
 
 client = CustomClient()
