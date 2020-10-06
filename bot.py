@@ -120,7 +120,7 @@ class CustomClient(discord.Client):
             return f"window closed {printable_time_delta(abs(max_time - now))} ago"
 
     async def on_ready(self):
-        await self.boss_alert()
+        await self.timed_events()
 
     async def on_message(self, message):
         if message.author == client.user:
@@ -161,16 +161,41 @@ class CustomClient(discord.Client):
                 )
                 return
 
+    async def auto_window(self):
+        time_format = "%H:%M:%S %a, %b %d %Y (UTC)"
+        channel = client.get_channel(755624773400395928)
+
+        try:
+            last_message = await channel.fetch_message(channel.last_message_id)
+            not_found = False
+        except discord.NotFound:
+            not_found = True
+
+        update_time = datetime.datetime.now(datetime.timezone.utc).strftime(time_format)
+        content = self.windows_response() + f"\n```(last updated at {update_time})```"
+        if not_found or last_message.author != client.user:
+            # If no previous message, or last message not by bot, make new post:
+            await channel.send(content=content)
+        else:
+            # If last message was posted by bot, update that message:
+            await last_message.edit(content=content)
+        return
+
     async def boss_alert(self):
+        for boss, window in self.windows.items():
+            if self.check_if_window(window) is True:
+                # channel = client.get_channel(755624773400395928) # test server
+                channel = client.get_channel(737070921944399962)  # #alliance-chat
+                # TODO: Add way to add alert channels, and loop through them here
+                msg = f"@everyone ```{self.BOSS_NAMES[boss]} window is open!```"
+                await channel.send(msg)
+        return
+
+    async def timed_events(self):
         while True:
             await asyncio.sleep(self.WINDOW_CHECK_TIME)
-            for boss, window in self.windows.items():
-                if self.check_if_window(window) is True:
-                    channel = client.get_channel(755624773400395928)  # #alliance-chat
-                    # channel = client.get_channel(737070921944399962)
-                    # TODO: Add way to add alert channels, and loop through them here
-                    msg = f"```{self.BOSS_NAMES[boss]} window is open!```"
-                    await channel.send(msg)
+            boss_alert()
+            auto_window()
 
 
 client = CustomClient()
