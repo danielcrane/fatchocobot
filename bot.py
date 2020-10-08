@@ -73,6 +73,11 @@ class CustomClient(discord.Client):
 
         super().__init__()
 
+    def convert_window(self, window):
+        return datetime.datetime.strptime(window, self.TIME_FORMAT).replace(
+            tzinfo=datetime.timezone.utc
+        )
+
     def windows_response(self):
         self.windows = self.fb.get("/raid-windows", "")[self.fb_name]
         lines = []
@@ -90,12 +95,10 @@ class CustomClient(discord.Client):
         return response
 
     def check_if_window(self, window, now):
-        if window[0] == "None" or window[1] == "None":
+        if "None" in window:
             return False
 
-        min_time = datetime.datetime.strptime(window[0], self.TIME_FORMAT).replace(
-            tzinfo=datetime.timezone.utc
-        )
+        min_time = self.convert_window(window[0])
 
         diff = min_time - now
         if diff.days == 0 and diff.seconds < self.WINDOW_CHECK_TIME:
@@ -109,17 +112,13 @@ class CustomClient(discord.Client):
 
         now = datetime.datetime.now(datetime.timezone.utc)
 
-        min_time = datetime.datetime.strptime(window[0], self.TIME_FORMAT).replace(
-            tzinfo=datetime.timezone.utc
-        )
+        min_time = self.convert_window(window[0])
 
         if min_time > now:
             # Case: window not opened yet
             return f"window opens in {printable_time_delta(min_time - now)}"
 
-        max_time = datetime.datetime.strptime(window[1], self.TIME_FORMAT).replace(
-            tzinfo=datetime.timezone.utc
-        )
+        max_time = self.convert_window(window[1])
 
         if max_time > now:
             # Case: window still open
