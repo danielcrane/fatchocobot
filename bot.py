@@ -89,11 +89,9 @@ class CustomClient(discord.Client):
         response += "```"
         return response
 
-    def check_if_window(self, window):
+    def check_if_window(self, window, now):
         if window[0] == "None" or window[1] == "None":
             return False
-
-        now = datetime.datetime.now(datetime.timezone.utc)
 
         min_time = datetime.datetime.strptime(window[0], self.TIME_FORMAT).replace(
             tzinfo=datetime.timezone.utc
@@ -239,8 +237,9 @@ class CustomClient(discord.Client):
         return
 
     async def boss_alert(self):
+        now = datetime.datetime.now(datetime.timezone.utc)  # fix "now" here so it's same for all boss checks
         for boss, window in self.windows.items():
-            if self.check_if_window(window) is True:
+            if self.check_if_window(window, now) is True:
                 # channel = client.get_channel(755624773400395928) # test server
                 channel = client.get_channel(737070921944399962)  # #alliance-chat
                 # TODO: Add way to add alert channels, and loop through them here
