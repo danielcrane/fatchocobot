@@ -237,7 +237,9 @@ class CustomClient(discord.Client):
         return
 
     async def boss_alert(self):
-        now = datetime.datetime.now(datetime.timezone.utc)  # fix "now" here so it's same for all boss checks
+        now = datetime.datetime.now(
+            datetime.timezone.utc
+        )  # fix "now" here so it's same for all boss checks
         for boss, window in self.windows.items():
             if self.check_if_window(window, now) is True:
                 # channel = client.get_channel(755624773400395928) # test server
