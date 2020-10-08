@@ -24,6 +24,8 @@ class CustomClient(discord.Client):
         self.TIME_FORMAT = "%H:%M %a, %b %d %Y (UTC)"
         self.WINDOWS = "!windows"
         self.TOD = "!tod"
+        self.ALERT = "!alert"
+        self.AUTO_WINDOW = "!autowindow"
 
         self.BOSS_NAMES = {
             "aq": "Ant Queen",
@@ -48,7 +50,7 @@ class CustomClient(discord.Client):
             "frintezza": (48 * 60, (48 + 2) * 60),
         }
 
-        self.WINDOW_CHECK_TIME = 10  # Time in seconds between window checks for alert
+        self.WINDOW_CHECK_TIME = 20  # Time in seconds between window checks for alert
 
         self.fb = firebase.FirebaseApplication(DB, None)
         if self.fb.get("/raid-windows", "") is not None:
@@ -59,6 +61,15 @@ class CustomClient(discord.Client):
             self.windows = {boss: ("None", "None") for boss in self.BOSS_NAMES.keys()}
             result = self.fb.post("/raid-windows", self.windows)
             self.fb_name = result["name"]
+
+        if self.fb.get("/auto-window-channels", "") is not None:
+            result = self.fb.get("/auto-window-channels", "")
+            self.fb_auto_window_name = list(result.keys())[0]
+            self.auto_window_channels = result[self.fb_auto_window_name]
+        else:
+            self.auto_window_channels = []
+            result = self.fb.post("/auto-window-channels", self.auto_window_channels)
+            self.fb_auto_window_name = result["name"]
 
         super().__init__()
 
@@ -119,6 +130,44 @@ class CustomClient(discord.Client):
             # Case: window already closed
             return f"window closed {printable_time_delta(abs(max_time - now))} ago"
 
+    def add_auto_window(self, message):
+        # Add channel to automatic window updater
+        content_split = message.content.lower().split(" ")
+
+        try:
+            # Note: Only first channel mention in the message will be processed
+            mentioned_channel = message.channel_mentions[0]
+        except IndexError:
+            return
+        except TypeError:
+            return
+
+        if content_split[1] == "del":
+            # Remove channel from list
+            for i, channel in enumerate(self.auto_window_channels):
+                if (channel["server_id"] == message.guild.id) and (
+                    channel["channel_id"] == mentioned_channel.id
+                ):
+                    del self.auto_window_channels[i]
+                    response = f"Removed automatic window updates from `#{mentioned_channel.name}` on server `{message.guild.name}`"
+                    break  # Assume there's only one, duplicate checking should be done add time of adding
+            else:
+                response = f"Channel `#{mentioned_channel.name}` on server `{message.guild.name}` not found in list"
+        else:
+            data = {
+                "server_name": message.guild.name,
+                "server_id": message.guild.id,
+                "channel_name": mentioned_channel.name,
+                "channel_id": mentioned_channel.id,
+            }
+            self.auto_window_channels.append(data)
+            response = f"Added automatic window updates to `#{mentioned_channel.name}` on server `{message.guild.name}`"
+
+        self.fb.delete("/auto-window-channels/", self.fb_auto_window_name)
+        result = self.fb.post("/auto-window-channels", self.auto_window_channels)
+        self.fb_auto_window_name = result["name"]
+        return response
+
     async def on_ready(self):
         await self.timed_events()
 
@@ -127,10 +176,15 @@ class CustomClient(discord.Client):
             return
         content = message.content.lower()
 
-        if content[: len(self.WINDOWS)] == self.WINDOWS:
-            response = self.windows_response()
+        if content[: len(self.AUTO_WINDOW)] == self.AUTO_WINDOW:
+            response = self.add_auto_window(message)
             await message.channel.send(response)
             return
+
+        # if content[: len(self.WINDOWS)] == self.WINDOWS:
+        #     response = self.windows_response()
+        #     await message.channel.send(response)
+        #     return
 
         if content[: len(self.TOD)] == self.TOD:
             content_split = content.split(" ")
@@ -163,22 +217,25 @@ class CustomClient(discord.Client):
 
     async def auto_window(self):
         time_format = "%H:%M:%S %a, %b %d %Y (UTC)"
-        channel = client.get_channel(755624773400395928)
 
-        try:
-            last_message = await channel.fetch_message(channel.last_message_id)
-            not_found = False
-        except discord.NotFound:
-            not_found = True
+        for chan in self.auto_window_channels:
+            channel = client.get_channel(chan["channel_id"])
 
-        update_time = datetime.datetime.now(datetime.timezone.utc).strftime(time_format)
-        content = self.windows_response() + f"\n```(last updated at {update_time})```"
-        if not_found or last_message.author != client.user:
-            # If no previous message, or last message not by bot, make new post:
-            await channel.send(content=content)
-        else:
-            # If last message was posted by bot, update that message:
-            await last_message.edit(content=content)
+            try:
+                last_message = await channel.fetch_message(channel.last_message_id)
+                not_found = False
+            except Exception as e:
+                print(e)
+                not_found = True
+
+            update_time = datetime.datetime.now(datetime.timezone.utc).strftime(time_format)
+            content = self.windows_response() + f"\n```(last updated at {update_time})```"
+            if not_found or last_message.author != client.user:
+                # If no previous message, or last message not by bot, make new post:
+                await channel.send(content=content)
+            else:
+                # If last message was posted by bot, update that message:
+                await last_message.edit(content=content)
         return
 
     async def boss_alert(self):
@@ -194,8 +251,8 @@ class CustomClient(discord.Client):
     async def timed_events(self):
         while True:
             await asyncio.sleep(self.WINDOW_CHECK_TIME)
-            boss_alert()
-            auto_window()
+            await self.boss_alert()
+            await self.auto_window()
 
 
 client = CustomClient()
