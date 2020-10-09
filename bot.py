@@ -107,7 +107,7 @@ class CustomClient(discord.Client):
             return False
 
     def create_window_string(self, window):
-        if window[0] == "None" or window[1] == "None":
+        if "None" in window:
             return "window unknown"
 
         now = datetime.datetime.now(datetime.timezone.utc)
