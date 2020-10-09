@@ -147,10 +147,18 @@ class CustomClient(discord.Client):
                 ):
                     del self.auto_window_channels[i]
                     response = f"Removed automatic window updates from `#{mentioned_channel.name}` on server `{message.guild.name}`"
-                    break  # Assume there's only one, duplicate checking should be done add time of adding
+                    break  # Assume there's only one, duplicate checking should be done at time of adding
             else:
                 response = f"Channel `#{mentioned_channel.name}` on server `{message.guild.name}` not found in list"
         else:
+            for channel in self.auto_window_channels:
+                # Check for duplicate entry before adding
+                if (channel["server_id"] == message.guild.id) and (
+                    channel["channel_id"] == mentioned_channel.id
+                ):
+                    response = f"`#{mentioned_channel.name}` on server `{message.guild.name}` already in list"
+                    return response
+
             data = {
                 "server_name": message.guild.name,
                 "server_id": message.guild.id,
