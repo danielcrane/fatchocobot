@@ -19,6 +19,11 @@ def printable_time_delta(delta):
     return f"{days}{hours} hours, {minutes} minutes"
 
 
+def min_max_spawn(minimum_hours, random_hours):
+    # Returns spawn window in minutes in format: (minimum_minutes, maximum_minutes)
+    return (minimum_hours * 60, (minimum_hours + random_hours) * 60)
+
+
 class CustomClient(discord.Client):
     def __init__(self):
         self.TIME_FORMAT = "%H:%M %a, %b %d %Y (UTC)"
@@ -40,14 +45,14 @@ class CustomClient(discord.Client):
 
         # Respawn times taken from: https://l2reborn.com/support/faq/what-is-the-respawn-time-of-raid-bosses-epics-etc/
         self.SPAWN_TIMES = {
-            "aq": (24 * 60, (24 + 6) * 60),
-            "core": (30 * 60, (30 + 6) * 60),
-            "orfen": (30 * 60, (30 + 6) * 60),
-            "zaken": (40 * 60, (40 + 8) * 60),
-            "baium": (120 * 60, (120 + 8) * 60),
-            "antharas": (192 * 60, (192 + 8) * 60),
-            "valakas": (264 * 60, (264 + 0) * 60),
-            "frintezza": (48 * 60, (48 + 2) * 60),
+            "aq": min_max_spawn(24, 6),
+            "core": min_max_spawn(30, 6),
+            "orfen": min_max_spawn(30, 6),
+            "zaken": min_max_spawn(40, 8),
+            "baium": min_max_spawn(120, 8),
+            "antharas": min_max_spawn(192, 8),
+            "valakas": min_max_spawn(264, 0),
+            "frintezza": min_max_spawn(48, 2),
         }
 
         self.WINDOW_CHECK_TIME = 20  # Time in seconds between window checks for alert
