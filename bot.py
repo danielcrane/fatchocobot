@@ -32,6 +32,8 @@ class CustomClient(discord.Client):
         self.ALERT = "!alert"
         self.AUTO_WINDOW = "!autowindow"
 
+        self.WINDOW_CHECK_TIME = 20  # Time in seconds between window checks for alert
+
         self.BOSS_NAMES = {
             "aq": "Ant Queen",
             "core": "Core",
@@ -54,8 +56,6 @@ class CustomClient(discord.Client):
             "valakas": min_max_spawn(264, 0),
             "frintezza": min_max_spawn(48, 2),
         }
-
-        self.WINDOW_CHECK_TIME = 20  # Time in seconds between window checks for alert
 
         self.fb = firebase.FirebaseApplication(DB, None)
         if self.fb.get("/raid-windows", "") is not None:
