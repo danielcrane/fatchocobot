@@ -45,7 +45,8 @@ class CustomClient(discord.Client):
             "frintezza": "Frintezza",
         }
 
-        # Respawn times taken from: https://l2reborn.com/support/faq/what-is-the-respawn-time-of-raid-bosses-epics-etc/
+        # Respawn times taken from:
+        # https://l2reborn.com/support/faq/what-is-the-respawn-time-of-raid-bosses-epics-etc/
         self.SPAWN_TIMES = {
             "aq": min_max_spawn(24, 6),
             "core": min_max_spawn(30, 6),
@@ -151,17 +152,26 @@ class CustomClient(discord.Client):
                     channel["channel_id"] == mentioned_channel.id
                 ):
                     del self.auto_window_channels[i]
-                    response = f"Removed automatic window updates from `#{mentioned_channel.name}` on server `{message.guild.name}`"
-                    break  # Assume there's only one, duplicate checking should be done at time of adding
+                    response = (
+                        f"Removed automatic window updates from `#{mentioned_channel.name}` "
+                        f" on server `{message.guild.name}`"
+                    )
+                    break  # Assume there's only one, duplicate checking is done at time of adding
             else:
-                response = f"Channel `#{mentioned_channel.name}` on server `{message.guild.name}` not found in list"
+                response = (
+                    f"Channel `#{mentioned_channel.name}` on server `{message.guild.name}` "
+                    "not found in list"
+                )
         else:
             for channel in self.auto_window_channels:
                 # Check for duplicate entry before adding
                 if (channel["server_id"] == message.guild.id) and (
                     channel["channel_id"] == mentioned_channel.id
                 ):
-                    response = f"`#{mentioned_channel.name}` on server `{message.guild.name}` already in list"
+                    response = (
+                        f"`#{mentioned_channel.name}` on server `{message.guild.name}` "
+                        "already in list"
+                    )
                     return response
 
             data = {
@@ -171,7 +181,10 @@ class CustomClient(discord.Client):
                 "channel_id": mentioned_channel.id,
             }
             self.auto_window_channels.append(data)
-            response = f"Added automatic window updates to `#{mentioned_channel.name}` on server `{message.guild.name}`"
+            response = (
+                f"Added automatic window updates to `#{mentioned_channel.name}` on server "
+                f"`{message.guild.name}`"
+            )
 
         self.fb.delete("/auto-window-channels/", self.fb_auto_window_name)
         result = self.fb.post("/auto-window-channels", self.auto_window_channels)
@@ -201,7 +214,9 @@ class CustomClient(discord.Client):
 
             if len(content_split) < 4:
                 await message.channel.send(
-                    "Incorrect number of arguments for !tod, must follow format: `!tod <aq|zaken|baium|antharas> year/month/day hours:minutes` with hours in 24h format\n"
+                    "Incorrect number of arguments for !tod, must follow format: "
+                    "`!tod <aq|zaken|baium|antharas> year/month/day hours:minutes` "
+                    "with hours in 24h format\n"
                     "For example: `!tod aq 2020/09/30 23:30`"
                 )
                 return
