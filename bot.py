@@ -178,8 +178,8 @@ class CustomClient(discord.Client):
 
     async def on_message(self, message):
         if message.author == client.user:
-            return
-        content = message.content.lower()
+            return  # This is needed to avoid bot responding to itself
+        content = message.content.lower()  # Remove capitalisation from message for ease of parsing
 
         if content[: len(self.AUTO_WINDOW)] == self.AUTO_WINDOW:
             response = self.add_auto_window(message)
@@ -258,9 +258,9 @@ class CustomClient(discord.Client):
 
     async def timed_events(self):
         while True:
-            await asyncio.sleep(self.WINDOW_CHECK_TIME)
             await self.boss_alert()
             await self.auto_window()
+            await asyncio.sleep(self.WINDOW_CHECK_TIME)
 
 
 client = CustomClient()
