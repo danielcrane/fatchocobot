@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import datetime
 import asyncio
 from firebase import firebase
+from requests.exceptions import ConnectionError
 
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -85,7 +86,11 @@ class CustomClient(discord.Client):
         )
 
     def windows_response(self):
-        self.windows = self.fb.get("/raid-windows", "")[self.fb_name]
+        try:
+            self.windows = self.fb.get("/raid-windows", "")[self.fb_name]
+        except ConnectionError:
+            return None
+
         lines = []
         for boss, boss_verbose in self.BOSS_NAMES.items():
             window = self.windows[boss]
@@ -254,7 +259,13 @@ class CustomClient(discord.Client):
                 not_found = True
 
             update_time = datetime.datetime.now(datetime.timezone.utc).strftime(time_format)
-            content = self.windows_response() + f"\n```(last updated at {update_time})```"
+            response = self.windows_response()
+
+            if response is not None:
+                content = response + f"\n```(last updated at {update_time})```"
+            else:
+                return
+
             if not_found or last_message.author != client.user:
                 # If no previous message, or last message not by bot, make new post:
                 await channel.send(content=content)
